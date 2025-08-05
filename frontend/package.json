@@ -1,0 +1,59 @@
+{
+  "name": "multimedia-auth-frontend",
+  "version": "1.0.0",
+  "description": "Frontend dApp for Blockchain-based multimedia authentication and provenance system",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.8.1",
+    "react-dropzone": "^14.2.3",
+    "react-hot-toast": "^2.4.1",
+    "react-icons": "^4.8.0",
+    "ethers": "^6.8.1",
+    "wagmi": "^1.4.7",
+    "@web3modal/react": "^2.7.1",
+    "@web3modal/ethereum": "^2.7.1",
+    "viem": "^1.19.9",
+    "axios": "^1.6.2",
+    "clsx": "^2.0.0",
+    "tailwind-merge": "^2.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.43",
+    "@types/react-dom": "^18.2.17",
+    "@vitejs/plugin-react": "^4.2.1",
+    "autoprefixer": "^10.4.16",
+    "eslint": "^8.55.0",
+    "eslint-plugin-react": "^7.33.2",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "eslint-plugin-react-refresh": "^0.4.5",
+    "postcss": "^8.4.32",
+    "tailwindcss": "^3.3.6",
+    "vite": "^5.0.8"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  },
+  "keywords": [
+    "blockchain",
+    "multimedia",
+    "authentication",
+    "provenance",
+    "nft",
+    "ipfs",
+    "ethereum",
+    "react",
+    "dapp",
+    "web3"
+  ],
+  "author": "Your Name",
+  "license": "MIT"
+} 
