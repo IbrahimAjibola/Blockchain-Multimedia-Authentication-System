@@ -6,14 +6,12 @@
   "workspaces": [
     "contracts",
     "backend",
-    "frontend",
-    "mobile"
+    "frontend"
   ],
   "scripts": {
-    "dev": "concurrently \"pnpm run dev:backend\" \"pnpm run dev:frontend\" \"pnpm run dev:mobile\"",
+    "dev": "concurrently \"pnpm run dev:backend\" \"pnpm run dev:frontend\"",
     "dev:backend": "cd backend && pnpm run dev",
     "dev:frontend": "cd frontend && pnpm run dev",
-    "dev:mobile": "cd mobile && pnpm start",
     "build": "pnpm run build:backend && pnpm run build:frontend",
     "build:backend": "cd backend && pnpm run build",
     "build:frontend": "cd frontend && pnpm run build",
@@ -21,7 +19,7 @@
     "test:contracts": "cd contracts && pnpm run test",
     "test:backend": "cd backend && pnpm run test",
     "deploy:contracts": "cd contracts && pnpm run deploy",
-    "install:all": "pnpm install && cd contracts && pnpm install && cd ../backend && pnpm install && cd ../frontend && pnpm install && cd ../mobile && pnpm install"
+    "install:all": "pnpm install && cd contracts && pnpm install && cd ../backend && pnpm install && cd ../frontend && pnpm install"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"
@@ -30,4 +28,4 @@
     "node": ">=18.0.0",
     "pnpm": ">=8.0.0"
   }
-} 
+}

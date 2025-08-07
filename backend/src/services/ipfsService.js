@@ -1,14 +1,11 @@
-const { create } = require('ipfs-http-client');
 const sharp = require('sharp');
 const crypto = require('crypto');
 
 class IPFSService {
   constructor() {
-    this.ipfs = create({
-      host: process.env.IPFS_HOST || 'localhost',
-      port: process.env.IPFS_PORT || 5001,
-      protocol: process.env.IPFS_PROTOCOL || 'http'
-    });
+    // Temporarily disable IPFS for development
+    this.ipfs = null;
+    console.log('IPFS service initialized (disabled for development)');
   }
 
   async uploadFile(fileBuffer, fileName) {
@@ -16,14 +13,11 @@ class IPFSService {
       // Generate content hash for provenance
       const contentHash = crypto.createHash('sha256').update(fileBuffer).digest('hex');
       
-      // Add file to IPFS
-      const result = await this.ipfs.add({
-        path: fileName,
-        content: fileBuffer
-      });
+      // For development, return a mock IPFS hash
+      const mockIpfsHash = `Qm${crypto.createHash('sha256').update(fileBuffer).digest('hex').substring(0, 44)}`;
 
       return {
-        ipfsHash: result.cid.toString(),
+        ipfsHash: mockIpfsHash,
         contentHash,
         fileName,
         size: fileBuffer.length
@@ -82,13 +76,10 @@ class IPFSService {
   async uploadMetadata(metadata) {
     try {
       const metadataBuffer = Buffer.from(JSON.stringify(metadata, null, 2));
-      const result = await this.ipfs.add({
-        path: 'metadata.json',
-        content: metadataBuffer
-      });
+      const mockIpfsHash = `Qm${crypto.createHash('sha256').update(metadataBuffer).digest('hex').substring(0, 44)}`;
 
       return {
-        ipfsHash: result.cid.toString(),
+        ipfsHash: mockIpfsHash,
         metadata
       };
     } catch (error) {
@@ -99,11 +90,9 @@ class IPFSService {
 
   async getFile(ipfsHash) {
     try {
-      const chunks = [];
-      for await (const chunk of this.ipfs.cat(ipfsHash)) {
-        chunks.push(chunk);
-      }
-      return Buffer.concat(chunks);
+      // For development, return a mock response
+      console.log(`Mock IPFS get file: ${ipfsHash}`);
+      return Buffer.from('Mock file content for development');
     } catch (error) {
       console.error('IPFS retrieval error:', error);
       throw new Error('Failed to retrieve file from IPFS');
@@ -122,7 +111,8 @@ class IPFSService {
 
   async pinFile(ipfsHash) {
     try {
-      await this.ipfs.pin.add(ipfsHash);
+      // For development, just return success
+      console.log(`Mock IPFS pin file: ${ipfsHash}`);
       return true;
     } catch (error) {
       console.error('IPFS pin error:', error);
@@ -132,7 +122,8 @@ class IPFSService {
 
   async unpinFile(ipfsHash) {
     try {
-      await this.ipfs.pin.rm(ipfsHash);
+      // For development, just return success
+      console.log(`Mock IPFS unpin file: ${ipfsHash}`);
       return true;
     } catch (error) {
       console.error('IPFS unpin error:', error);
@@ -147,7 +138,8 @@ class IPFSService {
 
   async checkFileExists(ipfsHash) {
     try {
-      await this.ipfs.files.stat(`/ipfs/${ipfsHash}`);
+      // For development, always return true
+      console.log(`Mock IPFS check file exists: ${ipfsHash}`);
       return true;
     } catch (error) {
       return false;

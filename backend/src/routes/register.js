@@ -298,7 +298,7 @@ router.post('/batch',
       } = req.body;
 
       const results = [];
-      const errors = [];
+      const fileErrors = [];
 
       // Process files sequentially to avoid overwhelming the blockchain
       for (let i = 0; i < req.files.length; i++) {
@@ -357,7 +357,7 @@ router.post('/batch',
           // Check if IPFS hash already exists
           const hashExists = await blockchainService.checkIPFSHashExists(uploadResult.ipfsHash);
           if (hashExists) {
-            errors.push({
+            fileErrors.push({
               file: file.originalname,
               error: 'File already registered on blockchain',
               ipfsHash: uploadResult.ipfsHash
@@ -425,7 +425,7 @@ router.post('/batch',
 
         } catch (error) {
           console.error(`Error processing file ${file.originalname}:`, error);
-          errors.push({
+          fileErrors.push({
             file: file.originalname,
             error: error.message
           });
@@ -436,7 +436,7 @@ router.post('/batch',
         success: true,
         message: `Batch registration completed. ${results.length} files registered successfully.`,
         results,
-        errors: errors.length > 0 ? errors : undefined
+        errors: fileErrors.length > 0 ? fileErrors : undefined
       });
 
     } catch (error) {
