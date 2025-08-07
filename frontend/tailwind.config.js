@@ -32,6 +32,9 @@ export default {
           900: '#14532d',
         },
       },
+      borderWidth: {
+        '3': '3px',
+      },
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
       },
@@ -65,7 +68,28 @@ export default {
         'medium': '0 4px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
         'large': '0 10px 40px -10px rgba(0, 0, 0, 0.15), 0 2px 10px -2px rgba(0, 0, 0, 0.05)',
       },
+      rotate: {
+        'y-3': '3deg',
+      },
+      perspective: {
+        '1000': '1000px',
+      },
+      transform: {
+        'rotate-y-3': 'rotateY(3deg)',
+      },
     },
   },
-  plugins: [],
-} 
+  plugins: [
+    function({ addUtilities }) {
+      const newUtilities = {
+        '.rotate-y-3': {
+          transform: 'rotateY(3deg)',
+        },
+        '.perspective-1000': {
+          perspective: '1000px',
+        },
+      }
+      addUtilities(newUtilities, ['hover'])
+    }
+  ],
+}

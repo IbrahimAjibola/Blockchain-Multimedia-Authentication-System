@@ -1,11 +1,20 @@
 import React, { useState, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { FiUpload, FiX, FiImage, FiVideo, FiMusic, FiFile } from 'react-icons/fi';
+import { FiUpload, FiX, FiImage, FiVideo, FiMusic, FiFile, FiCheck, FiAlertCircle } from 'react-icons/fi';
 import { toast } from 'react-hot-toast';
 
-const FileUpload = ({ onFileSelect, maxSize = 100 * 1024 * 1024, multiple = false }) => {
-  const [files, setFiles] = useState([]);
-  const [isUploading, setIsUploading] = useState(false);
+const FileUpload = ({ 
+  onFileSelect, 
+  maxSize = 100 * 1024 * 1024, 
+  maxFiles = 10,
+  acceptedTypes = {
+    'image/*': ['.jpeg', '.jpg', '.png', '.gif', '.webp', '.bmp', '.tiff'],
+    'video/*': ['.mp4', '.avi', '.mov', '.wmv', '.flv', '.webm'],
+    'audio/*': ['.mp3', '.wav', '.flac', '.ogg', '.aac', '.m4a']
+  },
+  selectedFiles = []
+}) => {
+  const [files, setFiles] = useState(selectedFiles);
 
   const onDrop = useCallback((acceptedFiles, rejectedFiles) => {
     // Handle rejected files
@@ -13,9 +22,11 @@ const FileUpload = ({ onFileSelect, maxSize = 100 * 1024 * 1024, multiple = fals
       rejectedFiles.forEach(({ file, errors }) => {
         errors.forEach((error) => {
           if (error.code === 'file-too-large') {
-            toast.error(`${file.name} is too large. Maximum size is 100MB.`);
+            toast.error(`${file.name} is too large. Maximum size is ${formatFileSize(maxSize)}.`);
           } else if (error.code === 'file-invalid-type') {
             toast.error(`${file.name} is not a supported file type.`);
+          } else if (error.code === 'too-many-files') {
+            toast.error(`Too many files. Maximum is ${maxFiles} files.`);
           } else {
             toast.error(`${file.name} was rejected: ${error.message}`);
           }
@@ -29,45 +40,53 @@ const FileUpload = ({ onFileSelect, maxSize = 100 * 1024 * 1024, multiple = fals
         file,
         id: Math.random().toString(36).substr(2, 9),
         preview: file.type.startsWith('image/') ? URL.createObjectURL(file) : null,
-        status: 'pending'
+        status: 'pending',
+        type: getFileType(file.type),
+        size: formatFileSize(file.size)
       }));
 
-      setFiles(prev => multiple ? [...prev, ...newFiles] : newFiles);
+      const updatedFiles = [...files, ...newFiles].slice(0, maxFiles);
+      setFiles(updatedFiles);
       
-      if (onFileSelect) {
-        onFileSelect(multiple ? [...files, ...newFiles] : newFiles);
-      }
-
-      toast.success(`${acceptedFiles.length} file(s) selected successfully!`);
-    }
-  }, [files, multiple, onFileSelect]);
-
-  const { getRootProps, getInputProps, isDragActive, isDragReject } = useDropzone({
-    onDrop,
-    accept: {
-      'image/*': ['.jpeg', '.jpg', '.png', '.gif', '.webp', '.bmp', '.tiff'],
-      'video/*': ['.mp4', '.avi', '.mov', '.wmv', '.flv', '.webm'],
-      'audio/*': ['.mp3', '.wav', '.flac', '.ogg', '.aac', '.m4a']
-    },
-    maxSize,
-    multiple
-  });
-
-  const removeFile = (fileId) => {
-    setFiles(prev => {
-      const updatedFiles = prev.filter(f => f.id !== fileId);
       if (onFileSelect) {
         onFileSelect(updatedFiles);
       }
-      return updatedFiles;
-    });
+
+      toast.success(`${acceptedFiles.length} file(s) added successfully!`);
+    }
+  }, [files, onFileSelect, maxSize, maxFiles]);
+
+  const { getRootProps, getInputProps, isDragActive, isDragReject } = useDropzone({
+    onDrop,
+    accept: acceptedTypes,
+    maxSize,
+    maxFiles,
+    multiple: true
+  });
+
+  const removeFile = (fileId) => {
+    const updatedFiles = files.filter(file => file.id !== fileId);
+    setFiles(updatedFiles);
+    
+    if (onFileSelect) {
+      onFileSelect(updatedFiles);
+    }
   };
 
-  const getFileIcon = (fileType) => {
-    if (fileType.startsWith('image/')) return <FiImage className="w-6 h-6" />;
-    if (fileType.startsWith('video/')) return <FiVideo className="w-6 h-6" />;
-    if (fileType.startsWith('audio/')) return <FiMusic className="w-6 h-6" />;
-    return <FiFile className="w-6 h-6" />;
+  const getFileType = (mimeType) => {
+    if (mimeType.startsWith('image/')) return 'image';
+    if (mimeType.startsWith('video/')) return 'video';
+    if (mimeType.startsWith('audio/')) return 'audio';
+    return 'file';
+  };
+
+  const getFileIcon = (type) => {
+    switch (type) {
+      case 'image': return FiImage;
+      case 'video': return FiVideo;
+      case 'audio': return FiMusic;
+      default: return FiFile;
+    }
   };
 
   const formatFileSize = (bytes) => {
@@ -78,145 +97,222 @@ const FileUpload = ({ onFileSelect, maxSize = 100 * 1024 * 1024, multiple = fals
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
-  const getFileType = (fileType) => {
-    if (fileType.startsWith('image/')) return 'Image';
-    if (fileType.startsWith('video/')) return 'Video';
-    if (fileType.startsWith('audio/')) return 'Audio';
-    return 'File';
+  const getStatusIcon = (status) => {
+    switch (status) {
+      case 'success':
+        return <FiCheck className="w-4 h-4 text-green-600" />;
+      case 'error':
+        return <FiAlertCircle className="w-4 h-4 text-red-600" />;
+      case 'uploading':
+        return <div className="loading-spinner-sm"></div>;
+      default:
+        return null;
+    }
+  };
+
+  const getDropzoneClasses = () => {
+    let classes = "file-upload-area ";
+    
+    if (isDragActive && !isDragReject) {
+      classes += "file-upload-area-active";
+    } else if (isDragReject) {
+      classes += "file-upload-area-reject";
+    } else {
+      classes += "file-upload-area-default";
+    }
+    
+    return classes;
   };
 
   return (
-    <div className="w-full">
+    <div className="space-y-6">
       {/* Drop Zone */}
-      <div
-        {...getRootProps()}
-        className={`
-          border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-all duration-200
-          ${isDragActive 
-            ? 'border-blue-500 bg-blue-50' 
-            : isDragReject 
-              ? 'border-red-500 bg-red-50' 
-              : 'border-gray-300 hover:border-gray-400'
-          }
-        `}
-      >
+      <div {...getRootProps()} className={getDropzoneClasses()}>
         <input {...getInputProps()} />
-        
-        <div className="flex flex-col items-center space-y-4">
-          <div className={`
-            p-4 rounded-full
-            ${isDragActive 
-              ? 'bg-blue-100 text-blue-600' 
+        <div className="text-center">
+          <div className={`w-16 h-16 mx-auto mb-4 rounded-2xl flex items-center justify-center transition-all duration-300 ${
+            isDragActive && !isDragReject 
+              ? 'bg-gradient-to-r from-blue-500 to-purple-500 scale-110' 
               : isDragReject 
-                ? 'bg-red-100 text-red-600' 
-                : 'bg-gray-100 text-gray-600'
-            }
-          `}>
-            <FiUpload className="w-8 h-8" />
+              ? 'bg-gradient-to-r from-red-500 to-pink-500 scale-110'
+              : 'bg-gradient-to-r from-gray-400 to-gray-500'
+          }`}>
+            <FiUpload className={`w-8 h-8 transition-all duration-300 ${
+              isDragActive ? 'text-white' : 'text-white'
+            }`} />
           </div>
           
+          {isDragActive ? (
+            isDragReject ? (
+              <>
+                <p className="text-xl font-semibold text-red-600 mb-2">
+                  Some files are not supported
+                </p>
+                <p className="text-red-500">
+                  Please check file types and sizes
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-xl font-semibold text-blue-600 mb-2">
+                  Drop files here
+                </p>
+                <p className="text-blue-500">
+                  Release to upload
+                </p>
+              </>
+            )
+          ) : (
+            <>
+              <p className="text-xl font-semibold text-gray-900 mb-2">
+                Drag & drop files here
+              </p>
+              <p className="text-gray-600 mb-4">
+                or click to select files
+              </p>
+              <div className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-medium shadow-lg hover:shadow-xl transition-all duration-200 transform hover:-translate-y-0.5">
+                <FiUpload className="w-4 h-4 mr-2" />
+                Choose Files
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* File Requirements */}
+      <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl p-4 border border-blue-200">
+        <h4 className="font-semibold text-gray-900 mb-2">File Requirements</h4>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-gray-600">
           <div>
-            <p className="text-lg font-medium text-gray-900">
-              {isDragActive 
-                ? 'Drop files here' 
-                : isDragReject 
-                  ? 'Invalid file type' 
-                  : 'Drag & drop files here'
-              }
-            </p>
-            <p className="text-sm text-gray-500 mt-1">
-              or click to browse
-            </p>
+            <span className="font-medium text-gray-900">Max Size:</span> {formatFileSize(maxSize)}
           </div>
-          
-          <div className="text-xs text-gray-400">
-            <p>Supported formats: Images (JPEG, PNG, GIF, WebP, BMP, TIFF)</p>
-            <p>Videos (MP4, AVI, MOV, WMV, FLV, WebM)</p>
-            <p>Audio (MP3, WAV, FLAC, OGG, AAC)</p>
-            <p>Maximum file size: 100MB</p>
+          <div>
+            <span className="font-medium text-gray-900">Max Files:</span> {maxFiles}
+          </div>
+          <div>
+            <span className="font-medium text-gray-900">Supported:</span> Images, Videos, Audio
           </div>
         </div>
       </div>
 
-      {/* File List */}
+      {/* Selected Files */}
       {files.length > 0 && (
-        <div className="mt-6 space-y-3">
-          <h3 className="text-lg font-medium text-gray-900">
-            Selected Files ({files.length})
-          </h3>
-          
-          <div className="space-y-3">
-            {files.map((fileObj) => (
-              <div
-                key={fileObj.id}
-                className="flex items-center justify-between p-4 bg-white border border-gray-200 rounded-lg shadow-sm"
-              >
-                <div className="flex items-center space-x-4">
-                  {/* File Preview */}
-                  {fileObj.preview ? (
-                    <div className="w-16 h-16 rounded-lg overflow-hidden bg-gray-100">
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold text-gray-900">
+              Selected Files ({files.length}/{maxFiles})
+            </h3>
+            <button
+              onClick={() => {
+                setFiles([]);
+                if (onFileSelect) onFileSelect([]);
+              }}
+              className="text-red-600 hover:text-red-700 text-sm font-medium"
+            >
+              Clear All
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3">
+            {files.map((fileObj) => {
+              const IconComponent = getFileIcon(fileObj.type);
+              
+              return (
+                <div
+                  key={fileObj.id}
+                  className={`flex items-center p-4 rounded-xl border-2 transition-all duration-200 ${
+                    fileObj.status === 'success' ? 'border-green-200 bg-green-50' :
+                    fileObj.status === 'error' ? 'border-red-200 bg-red-50' :
+                    fileObj.status === 'uploading' ? 'border-blue-200 bg-blue-50' :
+                    'border-gray-200 bg-white hover:border-gray-300'
+                  }`}
+                >
+                  {/* File Preview/Icon */}
+                  <div className="w-12 h-12 rounded-xl overflow-hidden mr-4 flex-shrink-0">
+                    {fileObj.preview ? (
                       <img
                         src={fileObj.preview}
                         alt={fileObj.file.name}
                         className="w-full h-full object-cover"
+                        onError={(e) => {
+                          e.target.style.display = 'none';
+                          e.target.nextSibling.style.display = 'flex';
+                        }}
                       />
-                    </div>
-                  ) : (
-                    <div className="w-16 h-16 rounded-lg bg-gray-100 flex items-center justify-center">
-                      {getFileIcon(fileObj.file.type)}
-                    </div>
-                  )}
-                  
-                  {/* File Info */}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 truncate">
-                      {fileObj.file.name}
-                    </p>
-                    <div className="flex items-center space-x-4 text-xs text-gray-500">
-                      <span>{getFileType(fileObj.file.type)}</span>
-                      <span>{formatFileSize(fileObj.file.size)}</span>
-                      <span className={`
-                        px-2 py-1 rounded-full text-xs font-medium
-                        ${fileObj.status === 'pending' && 'bg-yellow-100 text-yellow-800'}
-                        ${fileObj.status === 'uploading' && 'bg-blue-100 text-blue-800'}
-                        ${fileObj.status === 'success' && 'bg-green-100 text-green-800'}
-                        ${fileObj.status === 'error' && 'bg-red-100 text-red-800'}
-                      `}>
-                        {fileObj.status}
-                      </span>
+                    ) : null}
+                    <div 
+                      className="w-full h-full bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center"
+                      style={{ display: fileObj.preview ? 'none' : 'flex' }}
+                    >
+                      <IconComponent className="w-6 h-6 text-gray-400" />
                     </div>
                   </div>
-                </div>
-                
-                {/* Remove Button */}
-                <button
-                  onClick={() => removeFile(fileObj.id)}
-                  className="p-2 text-gray-400 hover:text-red-500 transition-colors duration-200"
-                  title="Remove file"
-                >
-                  <FiX className="w-5 h-5" />
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
-      {/* Upload Progress */}
-      {isUploading && (
-        <div className="mt-6">
-          <div className="bg-gray-100 rounded-full h-2">
-            <div className="bg-blue-600 h-2 rounded-full transition-all duration-300" style={{ width: '0%' }}>
-              {/* Progress bar would be controlled by parent component */}
-            </div>
+                  {/* File Info */}
+                  <div className="flex-1 min-w-0">
+                    <h4 className="font-medium text-gray-900 truncate">
+                      {fileObj.file.name}
+                    </h4>
+                    <div className="flex items-center gap-4 text-sm text-gray-500">
+                      <span>{fileObj.size}</span>
+                      <span className="capitalize">{fileObj.type}</span>
+                      {fileObj.status && fileObj.status !== 'pending' && (
+                        <span className={`status-badge ${
+                          fileObj.status === 'success' ? 'status-success' :
+                          fileObj.status === 'error' ? 'status-error' :
+                          fileObj.status === 'uploading' ? 'status-uploading' :
+                          'status-pending'
+                        }`}>
+                          {fileObj.status}
+                        </span>
+                      )}
+                    </div>
+                    
+                    {fileObj.error && (
+                      <p className="text-red-600 text-sm mt-1">{fileObj.error}</p>
+                    )}
+                  </div>
+
+                  {/* Status & Actions */}
+                  <div className="flex items-center gap-3">
+                    {getStatusIcon(fileObj.status)}
+                    
+                    <button
+                      onClick={() => removeFile(fileObj.id)}
+                      className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all duration-200"
+                      disabled={fileObj.status === 'uploading'}
+                    >
+                      <FiX className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
           </div>
-          <p className="text-sm text-gray-600 mt-2 text-center">
-            Uploading files...
-          </p>
+
+          {/* Upload Progress Summary */}
+          {files.some(f => f.status === 'uploading') && (
+            <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-blue-800 font-medium">Upload Progress</span>
+                <span className="text-blue-600 text-sm">
+                  {files.filter(f => f.status === 'success').length} / {files.length} completed
+                </span>
+              </div>
+              <div className="w-full bg-blue-200 rounded-full h-2">
+                <div 
+                  className="bg-gradient-to-r from-blue-600 to-purple-600 h-2 rounded-full transition-all duration-300"
+                  style={{ 
+                    width: `${(files.filter(f => f.status === 'success').length / files.length) * 100}%` 
+                  }}
+                ></div>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
   );
 };
 
-export default FileUpload; 
+export default FileUpload;

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useWeb3 } from './Web3Provider';
 import FileUpload from './FileUpload';
 import { toast } from 'react-hot-toast';
-import { FiUpload, FiCheck, FiX, FiAlertCircle, FiInfo } from 'react-icons/fi';
+import { FiUpload, FiCheck, FiX, FiAlertCircle, FiInfo, FiUser, FiTag, FiDollarSign, FiSettings } from 'react-icons/fi';
 
 const ContentRegistration = () => {
   const { account, isConnected, mintAsset, formatBalance, balance } = useWeb3();
@@ -103,15 +103,15 @@ const ContentRegistration = () => {
           const result = await response.json();
 
           // Update file status to success
-          const updatedFiles = selectedFiles.map((f, index) => 
-            index === i ? { ...f, status: 'success' } : f
+          const successFiles = selectedFiles.map((f, index) => 
+            index === i ? { ...f, status: 'success', result } : f
           );
-          setSelectedFiles(updatedFiles);
+          setSelectedFiles(successFiles);
 
           results.push({
             file: fileObj.file.name,
             success: true,
-            data: result
+            result
           });
 
           toast.success(`${fileObj.file.name} registered successfully!`);
@@ -120,10 +120,10 @@ const ContentRegistration = () => {
           console.error(`Error registering ${fileObj.file.name}:`, error);
           
           // Update file status to error
-          const updatedFiles = selectedFiles.map((f, index) => 
-            index === i ? { ...f, status: 'error' } : f
+          const errorFiles = selectedFiles.map((f, index) => 
+            index === i ? { ...f, status: 'error', error: error.message } : f
           );
-          setSelectedFiles(updatedFiles);
+          setSelectedFiles(errorFiles);
 
           results.push({
             file: fileObj.file.name,
@@ -136,19 +136,23 @@ const ContentRegistration = () => {
       }
 
       setRegistrationResult({
-        total: selectedFiles.length,
-        successful: results.filter(r => r.success).length,
+        success: results.filter(r => r.success).length,
         failed: results.filter(r => !r.success).length,
         results
       });
 
-      setRegistrationStep(2 + selectedFiles.length);
+      if (results.every(r => r.success)) {
+        toast.success(`All ${results.length} files registered successfully!`);
+      } else if (results.some(r => r.success)) {
+        toast.success(`${results.filter(r => r.success).length} files registered successfully!`);
+      }
 
     } catch (error) {
       console.error('Registration error:', error);
       toast.error('Registration failed. Please try again.');
     } finally {
       setIsRegistering(false);
+      setRegistrationStep(0);
     }
   };
 
@@ -168,319 +172,315 @@ const ContentRegistration = () => {
 
   if (!isConnected) {
     return (
-      <div className="max-w-4xl mx-auto p-6">
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 text-center">
-          <FiAlertCircle className="w-12 h-12 text-yellow-600 mx-auto mb-4" />
-          <h2 className="text-xl font-semibold text-yellow-800 mb-2">
-            Wallet Not Connected
-          </h2>
-          <p className="text-yellow-700">
-            Please connect your wallet to register multimedia content.
-          </p>
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 py-12">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="card text-center animate-fade-in-up">
+            <div className="w-20 h-20 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full flex items-center justify-center mx-auto mb-6">
+              <FiAlertCircle className="w-10 h-10 text-white" />
+            </div>
+            <h2 className="text-3xl font-bold text-gray-900 mb-4">Wallet Connection Required</h2>
+            <p className="text-xl text-gray-600 mb-8">
+              Please connect your wallet to register multimedia content on the blockchain.
+            </p>
+            <button
+              onClick={() => window.location.reload()}
+              className="btn-primary"
+            >
+              Refresh Page
+            </button>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="max-w-4xl mx-auto p-6">
-      <div className="bg-white rounded-lg shadow-lg p-8">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 py-12">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            Register Multimedia Content
+        <div className="text-center mb-12 animate-fade-in-up">
+          <div className="w-16 h-16 bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg">
+            <FiUpload className="w-8 h-8 text-white" />
+          </div>
+          <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
+            Register Content
           </h1>
-          <p className="text-gray-600">
-            Upload your multimedia files to register them on the blockchain and mint NFTs.
+          <p className="text-xl text-gray-600 max-w-3xl mx-auto">
+            Upload and register your multimedia files as NFTs on the blockchain with complete provenance tracking
           </p>
         </div>
 
-        {/* Wallet Info */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+        {/* Account Info */}
+        <div className="card-modern mb-8 animate-slide-down">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-blue-800">
-                Connected Wallet: {account}
-              </p>
-              <p className="text-sm text-blue-600">
-                Balance: {formatBalance(balance)} ETH
-              </p>
+              <h3 className="text-lg font-semibold text-gray-900">Connected Account</h3>
+              <p className="text-gray-600 font-mono text-sm">{account}</p>
             </div>
-            <div className="flex items-center space-x-2">
-              <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-              <span className="text-sm text-green-700">Connected</span>
+            <div className="text-right">
+              <p className="text-sm text-gray-500">Balance</p>
+              <p className="text-lg font-semibold text-gradient-blue">{formatBalance(balance)} ETH</p>
             </div>
           </div>
         </div>
 
-        {!isRegistering ? (
-          <>
-            {/* File Upload */}
-            <div className="mb-8">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">
-                Select Files
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* File Upload Section */}
+          <div className="space-y-6">
+            <div className="card-modern animate-slide-left">
+              <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center">
+                <FiUpload className="w-6 h-6 mr-3 text-gradient-blue" />
+                Upload Files
               </h2>
-              <FileUpload
+              <FileUpload 
                 onFileSelect={handleFileSelect}
-                multiple={true}
-                maxSize={100 * 1024 * 1024}
+                selectedFiles={selectedFiles}
+                maxFiles={10}
+                acceptedTypes={{
+                  'image/*': ['.jpg', '.jpeg', '.png', '.gif', '.webp'],
+                  'video/*': ['.mp4', '.mov', '.avi', '.mkv'],
+                  'audio/*': ['.mp3', '.wav', '.m4a', '.flac']
+                }}
               />
             </div>
 
-            {/* Registration Form */}
-            {selectedFiles.length > 0 && (
-              <div className="space-y-6">
-                <h2 className="text-xl font-semibold text-gray-900">
-                  Content Information
-                </h2>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Original Creator */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Original Creator *
-                    </label>
-                    <input
-                      type="text"
-                      name="originalCreator"
-                      value={formData.originalCreator}
-                      onChange={handleInputChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="Enter the original creator's name"
-                      required
-                    />
+            {/* Registration Progress */}
+            {isRegistering && (
+              <div className="card animate-scale-in">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Registration Progress</h3>
+                <div className="space-y-4">
+                  <div className="flex items-center">
+                    <div className="loading-spinner mr-3"></div>
+                    <span className="text-gray-700">
+                      Step {registrationStep}: {
+                        registrationStep === 1 ? 'Preparing files...' :
+                        registrationStep === 2 ? 'Uploading to IPFS...' :
+                        `Registering file ${registrationStep - 1}...`
+                      }
+                    </span>
                   </div>
-
-                  {/* Description */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Description
-                    </label>
-                    <textarea
-                      name="description"
-                      value={formData.description}
-                      onChange={handleInputChange}
-                      rows={3}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="Describe your content"
-                    />
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div 
+                      className="bg-gradient-to-r from-blue-600 to-purple-600 h-2 rounded-full transition-all duration-300"
+                      style={{ 
+                        width: `${Math.min(100, (registrationStep / (selectedFiles.length + 1)) * 100)}%` 
+                      }}
+                    ></div>
                   </div>
-
-                  {/* Tags */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Tags
-                    </label>
-                    <input
-                      type="text"
-                      name="tags"
-                      value={formData.tags}
-                      onChange={handleInputChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="Enter tags separated by commas"
-                    />
-                  </div>
-
-                  {/* License Type */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      License Type
-                    </label>
-                    <select
-                      name="licenseType"
-                      value={formData.licenseType}
-                      onChange={handleInputChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="">No License</option>
-                      <option value="Personal">Personal Use</option>
-                      <option value="Commercial">Commercial Use</option>
-                      <option value="Educational">Educational Use</option>
-                      <option value="Creative Commons">Creative Commons</option>
-                    </select>
-                  </div>
-
-                  {/* License Price */}
-                  {formData.licenseType && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        License Price (ETH)
-                      </label>
-                      <input
-                        type="number"
-                        name="licensePrice"
-                        value={formData.licensePrice}
-                        onChange={handleInputChange}
-                        step="0.001"
-                        min="0"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="0.01"
-                      />
-                    </div>
-                  )}
-
-                  {/* Optimize Images */}
-                  <div className="md:col-span-2">
-                    <label className="flex items-center">
-                      <input
-                        type="checkbox"
-                        name="optimize"
-                        checked={formData.optimize}
-                        onChange={handleInputChange}
-                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                      />
-                      <span className="ml-2 text-sm text-gray-700">
-                        Optimize images for web (recommended)
-                      </span>
-                    </label>
-                  </div>
-                </div>
-
-                {/* Action Buttons */}
-                <div className="flex justify-end space-x-4 pt-6">
-                  <button
-                    onClick={resetForm}
-                    className="px-6 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors duration-200"
-                  >
-                    Reset
-                  </button>
-                  <button
-                    onClick={registerContent}
-                    disabled={selectedFiles.length === 0}
-                    className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200 flex items-center space-x-2"
-                  >
-                    <FiUpload className="w-4 h-4" />
-                    <span>Register Content</span>
-                  </button>
                 </div>
               </div>
             )}
-          </>
-        ) : (
-          /* Registration Progress */
-          <div className="text-center py-12">
-            <div className="mb-6">
-              <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <FiUpload className="w-8 h-8 text-blue-600" />
-              </div>
-              <h2 className="text-xl font-semibold text-gray-900 mb-2">
-                Registering Content
+          </div>
+
+          {/* Form Section */}
+          <div className="space-y-6">
+            <div className="card-modern animate-slide-right">
+              <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center">
+                <FiInfo className="w-6 h-6 mr-3 text-gradient-purple" />
+                Content Details
               </h2>
-              <p className="text-gray-600">
-                Step {registrationStep} of {2 + selectedFiles.length}
-              </p>
+              
+              <div className="space-y-6">
+                {/* Original Creator */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center">
+                    <FiUser className="w-4 h-4 mr-2" />
+                    Original Creator *
+                  </label>
+                  <input
+                    type="text"
+                    name="originalCreator"
+                    value={formData.originalCreator}
+                    onChange={handleInputChange}
+                    className="input-modern focus-modern"
+                    placeholder="Enter creator name"
+                    required
+                  />
+                </div>
+
+                {/* Description */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Description
+                  </label>
+                  <textarea
+                    name="description"
+                    value={formData.description}
+                    onChange={handleInputChange}
+                    rows={4}
+                    className="input-field resize-none"
+                    placeholder="Describe your content..."
+                  />
+                </div>
+
+                {/* Tags */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center">
+                    <FiTag className="w-4 h-4 mr-2" />
+                    Tags
+                  </label>
+                  <input
+                    type="text"
+                    name="tags"
+                    value={formData.tags}
+                    onChange={handleInputChange}
+                    className="input-modern focus-modern"
+                    placeholder="art, photography, music (comma-separated)"
+                  />
+                </div>
+
+                {/* License Type */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    License Type
+                  </label>
+                  <select
+                    name="licenseType"
+                    value={formData.licenseType}
+                    onChange={handleInputChange}
+                    className="input-modern focus-modern"
+                  >
+                    <option value="">Select license type</option>
+                    <option value="CC0">CC0 (Public Domain)</option>
+                    <option value="CC-BY">CC BY (Attribution)</option>
+                    <option value="CC-BY-SA">CC BY-SA (Attribution-ShareAlike)</option>
+                    <option value="CC-BY-NC">CC BY-NC (Attribution-NonCommercial)</option>
+                    <option value="Commercial">Commercial License</option>
+                    <option value="Custom">Custom License</option>
+                  </select>
+                </div>
+
+                {/* License Price */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center">
+                    <FiDollarSign className="w-4 h-4 mr-2" />
+                    License Price (ETH)
+                  </label>
+                  <input
+                    type="number"
+                    name="licensePrice"
+                    value={formData.licensePrice}
+                    onChange={handleInputChange}
+                    step="0.001"
+                    min="0"
+                    className="input-modern focus-modern"
+                    placeholder="0.001"
+                  />
+                </div>
+
+                {/* Optimization */}
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    name="optimize"
+                    id="optimize"
+                    checked={formData.optimize}
+                    onChange={handleInputChange}
+                    className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+                  />
+                  <label htmlFor="optimize" className="ml-2 text-sm font-medium text-gray-700 flex items-center">
+                    <FiSettings className="w-4 h-4 mr-2" />
+                    Optimize files for web
+                  </label>
+                </div>
+              </div>
             </div>
 
-            <div className="space-y-4">
-              {selectedFiles.map((fileObj, index) => (
-                <div
-                  key={fileObj.id}
-                  className="flex items-center justify-between p-4 bg-gray-50 rounded-lg"
+            {/* Action Buttons */}
+            <div className="card-modern animate-slide-up">
+              <div className="flex flex-col sm:flex-row gap-4">
+                <button
+                  onClick={registerContent}
+                  disabled={isRegistering || selectedFiles.length === 0}
+                  className="btn-primary hover-lift flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <div className="flex items-center space-x-3">
-                    {fileObj.status === 'pending' && (
-                      <div className="w-4 h-4 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin"></div>
-                    )}
-                    {fileObj.status === 'uploading' && (
-                      <div className="w-4 h-4 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin"></div>
-                    )}
-                    {fileObj.status === 'success' && (
-                      <FiCheck className="w-4 h-4 text-green-600" />
-                    )}
-                    {fileObj.status === 'error' && (
-                      <FiX className="w-4 h-4 text-red-600" />
-                    )}
-                    <span className="text-sm font-medium text-gray-900">
-                      {fileObj.file.name}
-                    </span>
-                  </div>
-                  <span className={`
-                    px-2 py-1 rounded-full text-xs font-medium
-                    ${fileObj.status === 'pending' && 'bg-yellow-100 text-yellow-800'}
-                    ${fileObj.status === 'uploading' && 'bg-blue-100 text-blue-800'}
-                    ${fileObj.status === 'success' && 'bg-green-100 text-green-800'}
-                    ${fileObj.status === 'error' && 'bg-red-100 text-red-800'}
-                  `}>
-                    {fileObj.status}
-                  </span>
-                </div>
-              ))}
+                  {isRegistering ? (
+                    <>
+                      <div className="loading-spinner-sm mr-2"></div>
+                      Registering...
+                    </>
+                  ) : (
+                    <>
+                      <FiUpload className="w-4 h-4 mr-2" />
+                      Register Content
+                    </>
+                  )}
+                </button>
+                
+                <button
+                  onClick={resetForm}
+                  disabled={isRegistering}
+                  className="btn-modern hover-scale"
+                >
+                  Reset Form
+                </button>
+              </div>
             </div>
           </div>
-        )}
+        </div>
 
-        {/* Registration Result */}
+        {/* Registration Results */}
         {registrationResult && (
-          <div className="mt-8 bg-gray-50 rounded-lg p-6">
-            <div className="flex items-center space-x-3 mb-4">
-              <FiInfo className="w-6 h-6 text-blue-600" />
-              <h3 className="text-lg font-semibold text-gray-900">
-                Registration Complete
-              </h3>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-              <div className="text-center">
-                <div className="text-2xl font-bold text-gray-900">
-                  {registrationResult.total}
-                </div>
-                <div className="text-sm text-gray-600">Total Files</div>
+          <div className="mt-8 card animate-scale-in">
+            <h3 className="text-xl font-semibold text-gray-900 mb-4 flex items-center">
+              <FiCheck className="w-5 h-5 mr-2 text-green-600" />
+              Registration Complete
+            </h3>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+              <div className="bg-gradient-to-r from-green-50 to-green-100 p-4 rounded-xl border border-green-200">
+                <div className="text-2xl font-bold text-green-800">{registrationResult.success}</div>
+                <div className="text-green-600">Files Registered</div>
               </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-green-600">
-                  {registrationResult.successful}
+              
+              {registrationResult.failed > 0 && (
+                <div className="bg-gradient-to-r from-red-50 to-red-100 p-4 rounded-xl border border-red-200">
+                  <div className="text-2xl font-bold text-red-800">{registrationResult.failed}</div>
+                  <div className="text-red-600">Failed</div>
                 </div>
-                <div className="text-sm text-gray-600">Successful</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-red-600">
-                  {registrationResult.failed}
-                </div>
-                <div className="text-sm text-gray-600">Failed</div>
-              </div>
+              )}
             </div>
 
             <div className="space-y-3">
               {registrationResult.results.map((result, index) => (
-                <div
+                <div 
                   key={index}
-                  className={`p-3 rounded-lg border ${
-                    result.success ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'
+                  className={`p-4 rounded-xl border ${
+                    result.success 
+                      ? 'bg-green-50 border-green-200' 
+                      : 'bg-red-50 border-red-200'
                   }`}
                 >
                   <div className="flex items-center justify-between">
-                    <span className="font-medium text-gray-900">
-                      {result.file}
-                    </span>
-                    {result.success ? (
-                      <FiCheck className="w-5 h-5 text-green-600" />
-                    ) : (
-                      <FiX className="w-5 h-5 text-red-600" />
-                    )}
-                  </div>
-                  {result.success && result.data && (
-                    <div className="mt-2 text-sm text-gray-600">
-                      <p>Token ID: {result.data.asset.tokenId}</p>
-                      <p>Transaction: {result.data.blockchain.transactionHash}</p>
-                      <p>IPFS Hash: {result.data.asset.ipfsHash}</p>
+                    <div className="flex items-center">
+                      {result.success ? (
+                        <FiCheck className="w-5 h-5 text-green-600 mr-2" />
+                      ) : (
+                        <FiX className="w-5 h-5 text-red-600 mr-2" />
+                      )}
+                      <span className="font-medium">{result.file}</span>
                     </div>
+                    <span className={`status-badge ${
+                      result.success ? 'status-success' : 'status-error'
+                    }`}>
+                      {result.success ? 'Success' : 'Failed'}
+                    </span>
+                  </div>
+                  
+                  {result.error && (
+                    <p className="text-red-600 text-sm mt-2">{result.error}</p>
                   )}
-                  {!result.success && (
-                    <div className="mt-2 text-sm text-red-600">
-                      Error: {result.error}
+                  
+                  {result.result && (
+                    <div className="text-sm text-gray-600 mt-2">
+                      <p>IPFS Hash: {result.result.ipfsHash}</p>
+                      {result.result.tokenId && (
+                        <p>Token ID: {result.result.tokenId}</p>
+                      )}
                     </div>
                   )}
                 </div>
               ))}
-            </div>
-
-            <div className="mt-6 flex justify-end">
-              <button
-                onClick={resetForm}
-                className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors duration-200"
-              >
-                Register More Content
-              </button>
             </div>
           </div>
         )}
@@ -489,4 +489,4 @@ const ContentRegistration = () => {
   );
 };
 
-export default ContentRegistration; 
+export default ContentRegistration;

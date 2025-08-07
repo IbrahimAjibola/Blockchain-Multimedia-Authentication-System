@@ -8,6 +8,10 @@ import { WalletConnectConnector } from 'wagmi/connectors/walletConnect';
 import { CoinbaseWalletConnector } from 'wagmi/connectors/coinbaseWallet';
 import { publicProvider } from 'wagmi/providers/public';
 import { InjectedConnector } from 'wagmi/connectors/injected';
+import { Buffer } from 'buffer';
+
+// Polyfill Buffer for browser
+window.Buffer = Buffer;
 
 // Contract ABIs
 import MultimediaNFTABI from '../contracts/MultimediaNFT.json';
@@ -37,7 +41,8 @@ const config = createConfig({
     new WalletConnectConnector({
       chains,
       options: {
-        projectId: process.env.REACT_APP_WALLETCONNECT_PROJECT_ID || 'your-project-id',
+        projectId: 'c4f79cc821944d9680842e34466bfbd9',
+        showQrModal: false,
       },
     }),
     new CoinbaseWalletConnector({
@@ -463,10 +468,18 @@ export const Web3Provider = ({ children }) => {
       <WagmiConfig config={config}>
         {children}
         <Web3Modal
-          projectId={process.env.REACT_APP_WALLETCONNECT_PROJECT_ID || 'your-project-id'}
+          projectId="c4f79cc821944d9680842e34466bfbd9"
           ethereum={{
             appName: 'Multimedia Auth dApp',
             chains: [sepolia, mainnet],
+          }}
+          themeMode="light"
+          themeVariables={{
+            '--w3m-accent-color': '#3b82f6',
+            '--w3m-background-color': '#ffffff',
+            '--w3m-overlay-background-color': 'rgba(0, 0, 0, 0.5)',
+            '--w3m-border-radius-master': '12px',
+            '--w3m-container-border-radius': '16px',
           }}
         />
       </WagmiConfig>
