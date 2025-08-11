@@ -2,15 +2,13 @@
 pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
-import "@openzeppelin/contracts/utils/Counters.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 
 contract MultimediaRegistry is Ownable, ReentrancyGuard {
-    using Counters for Counters.Counter;
     using Strings for uint256;
 
-    Counters.Counter private _contentIds;
+    uint256 private _contentIds;
 
     struct Content {
         uint256 contentId;
@@ -131,8 +129,8 @@ contract MultimediaRegistry is Ownable, ReentrancyGuard {
         require(hashToContentId[ipfsHash] == 0, "Content already registered");
         require(fileSize > 0, "File size must be greater than 0");
 
-        _contentIds.increment();
-        uint256 newContentId = _contentIds.current();
+        _contentIds++;
+        uint256 newContentId = _contentIds;
 
         Content storage newContent = contents[newContentId];
         newContent.contentId = newContentId;
@@ -316,7 +314,7 @@ contract MultimediaRegistry is Ownable, ReentrancyGuard {
     }
 
     function getContentCount() public view returns (uint256) {
-        return _contentIds.current();
+        return _contentIds;
     }
 
     function setRegistrationFee(uint256 newFee) public onlyOwner {

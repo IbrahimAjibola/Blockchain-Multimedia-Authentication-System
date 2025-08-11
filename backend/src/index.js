@@ -10,6 +10,7 @@ const dotenv = require('dotenv');
 dotenv.config();
 
 // Import routes
+const authRoutes = require('./routes/auth');
 const assetsRoutes = require('./routes/assets');
 const registerRoutes = require('./routes/register');
 const verifyRoutes = require('./routes/verify');
@@ -77,6 +78,7 @@ app.get('/health', (req, res) => {
 });
 
 // API routes
+app.use('/api/auth', authRoutes);
 app.use('/api/assets', assetsRoutes);
 app.use('/api/register', registerRoutes);
 app.use('/api/verify', verifyRoutes);

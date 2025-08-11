@@ -218,7 +218,7 @@ const logRequest = (req, res, next) => {
 const corsOptions = {
   origin: function (origin, callback) {
     const allowedOrigins = process.env.ALLOWED_ORIGINS ? 
-      process.env.ALLOWED_ORIGINS.split(',') : ['http://localhost:3000'];
+      process.env.ALLOWED_ORIGINS.split(',') : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002'];
     
     if (!origin || allowedOrigins.includes(origin)) {
       callback(null, true);

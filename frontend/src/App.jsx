@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Link, useLocation, createBrowserRouter, RouterProvider } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { FiHome, FiUpload, FiSearch, FiImage, FiUser, FiMenu, FiX, FiShield, FiCheckCircle, FiZap } from 'react-icons/fi';
 
@@ -12,7 +12,19 @@ import { useWeb3 } from './components/Web3Provider';
 
 // Navigation component
 const Navigation = () => {
-  const { account, isConnected, connectWallet, disconnectWallet, formatBalance, balance, getShortAddress } = useWeb3();
+  const { 
+    account, 
+    isConnected, 
+    connectWallet, 
+    disconnectWallet, 
+    formatBalance, 
+    balance, 
+    getShortAddress, 
+    getConnectionStatus,
+    clearMetaMaskState,
+    refreshConnection,
+    retryAuthentication
+  } = useWeb3();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const location = useLocation();
 
@@ -79,6 +91,36 @@ const Navigation = () => {
                 >
                   Disconnect
                 </button>
+                <div className="flex space-x-2">
+                  <button
+                    onClick={() => console.log('Connection status:', getConnectionStatus())}
+                    className="text-xs text-gray-500 px-2 py-1 rounded border hover:bg-gray-100"
+                    title="Debug: Check connection status"
+                  >
+                    Status
+                  </button>
+                  <button
+                    onClick={clearMetaMaskState}
+                    className="text-xs text-red-500 px-2 py-1 rounded border border-red-300 hover:bg-red-50"
+                    title="Clear connection state (use if circuit breaker error)"
+                  >
+                    Clear
+                  </button>
+                  <button
+                    onClick={refreshConnection}
+                    className="text-xs text-blue-500 px-2 py-1 rounded border border-blue-300 hover:bg-blue-50"
+                    title="Refresh connection"
+                  >
+                    Refresh
+                  </button>
+                  <button
+                    onClick={retryAuthentication}
+                    className="text-xs text-green-500 px-2 py-1 rounded border border-green-300 hover:bg-green-50"
+                    title="Retry authentication"
+                  >
+                    Auth
+                  </button>
+                </div>
               </div>
             ) : (
               <button
@@ -386,7 +428,7 @@ const Home = () => {
 const App = () => {
   return (
     <Web3Provider>
-      <Router>
+      <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <div className="min-h-screen bg-gray-50">
           <Navigation />
           

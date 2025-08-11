@@ -1,11 +1,21 @@
 const sharp = require('sharp');
 const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
 
 class IPFSService {
   constructor() {
     // Temporarily disable IPFS for development
     this.ipfs = null;
+    this.storageDir = path.join(__dirname, '../../uploads');
+    
+    // Ensure storage directory exists
+    if (!fs.existsSync(this.storageDir)) {
+      fs.mkdirSync(this.storageDir, { recursive: true });
+    }
+    
     console.log('IPFS service initialized (disabled for development)');
+    console.log('Files will be stored locally in:', this.storageDir);
   }
 
   async uploadFile(fileBuffer, fileName) {
@@ -13,14 +23,22 @@ class IPFSService {
       // Generate content hash for provenance
       const contentHash = crypto.createHash('sha256').update(fileBuffer).digest('hex');
       
-      // For development, return a mock IPFS hash
-      const mockIpfsHash = `Qm${crypto.createHash('sha256').update(fileBuffer).digest('hex').substring(0, 44)}`;
+      // Generate a unique hash for the file
+      const fileHash = crypto.createHash('sha256').update(fileBuffer).digest('hex').substring(0, 44);
+      const mockIpfsHash = `Qm${fileHash}`;
+      
+      // Store file locally
+      const filePath = path.join(this.storageDir, `${mockIpfsHash}_${fileName}`);
+      fs.writeFileSync(filePath, fileBuffer);
+      
+      console.log(`File stored locally: ${filePath}`);
 
       return {
         ipfsHash: mockIpfsHash,
         contentHash,
         fileName,
-        size: fileBuffer.length
+        size: fileBuffer.length,
+        localPath: filePath
       };
     } catch (error) {
       console.error('IPFS upload error:', error);
@@ -90,9 +108,20 @@ class IPFSService {
 
   async getFile(ipfsHash) {
     try {
-      // For development, return a mock response
-      console.log(`Mock IPFS get file: ${ipfsHash}`);
-      return Buffer.from('Mock file content for development');
+      // For development, try to find the file locally
+      console.log(`Looking for file with hash: ${ipfsHash}`);
+      
+      const files = fs.readdirSync(this.storageDir);
+      const targetFile = files.find(file => file.startsWith(ipfsHash));
+      
+      if (targetFile) {
+        const filePath = path.join(this.storageDir, targetFile);
+        console.log(`Found file locally: ${filePath}`);
+        return fs.readFileSync(filePath);
+      } else {
+        console.log(`File not found locally for hash: ${ipfsHash}`);
+        return Buffer.from('File not found');
+      }
     } catch (error) {
       console.error('IPFS retrieval error:', error);
       throw new Error('Failed to retrieve file from IPFS');
@@ -132,8 +161,8 @@ class IPFSService {
   }
 
   getGatewayUrl(ipfsHash) {
-    const gateway = process.env.IPFS_GATEWAY || 'https://ipfs.io/ipfs/';
-    return `${gateway}${ipfsHash}`;
+    const gateway = process.env.IPFS_GATEWAY || 'https://ipfs.io';
+    return `${gateway}/ipfs/${ipfsHash}`;
   }
 
   async checkFileExists(ipfsHash) {

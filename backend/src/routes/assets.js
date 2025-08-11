@@ -199,16 +199,32 @@ router.get('/:tokenId', async (req, res) => {
 });
 
 // Get user's assets
-router.get('/user/:address', async (req, res) => {
+router.get('/user/:address', authenticateToken, async (req, res) => {
   try {
     const { address } = req.params;
     const { page = 1, limit = 20 } = req.query;
 
-    const assets = await Asset.find({ uploader: address })
+    const rawAssets = await Asset.find({ uploader: address })
       .sort({ createdAt: -1 })
       .limit(limit * 1)
       .skip((page - 1) * limit)
       .exec();
+
+    // Transform assets to include type and metadata fields expected by frontend
+    const assets = rawAssets.map(asset => ({
+      ...asset.toObject(),
+      type: asset.mimeType?.startsWith('image/') ? 'image' : 
+            asset.mimeType?.startsWith('video/') ? 'video' :
+            asset.mimeType?.startsWith('audio/') ? 'audio' : 'document',
+      metadata: {
+        description: asset.description || asset.originalName,
+        name: asset.originalName,
+        fileSize: asset.fileSize,
+        mimeType: asset.mimeType,
+        dimensions: asset.dimensions,
+        duration: asset.duration
+      }
+    }));
 
     const total = await Asset.countDocuments({ uploader: address });
 
@@ -295,6 +311,27 @@ router.get('/:tokenId/download', async (req, res) => {
   } catch (error) {
     console.error('Download asset error:', error);
     res.status(500).json({ error: 'Failed to download asset' });
+  }
+});
+
+// Serve asset file for display
+router.get('/:tokenId/file', async (req, res) => {
+  try {
+    const { tokenId } = req.params;
+
+    const asset = await Asset.findOne({ tokenId });
+    if (!asset) {
+      return res.status(404).json({ error: 'Asset not found' });
+    }
+
+    const fileBuffer = await ipfsService.getFile(asset.ipfsHash);
+    
+    res.setHeader('Content-Type', asset.fileType);
+    res.setHeader('Cache-Control', 'public, max-age=31536000'); // Cache for 1 year
+    res.send(fileBuffer);
+  } catch (error) {
+    console.error('Serve asset file error:', error);
+    res.status(500).json({ error: 'Failed to serve asset file' });
   }
 });
 

@@ -2,18 +2,14 @@
 pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
-import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
-import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
-import "@openzeppelin/contracts/utils/Counters.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 
-contract MultimediaNFT is ERC721, ERC721URIStorage, ERC721Enumerable, Ownable, ReentrancyGuard {
-    using Counters for Counters.Counter;
+contract MultimediaNFT is ERC721, Ownable, ReentrancyGuard {
     using Strings for uint256;
     
-    Counters.Counter private _tokenIds;
+    uint256 private _tokenIds;
     
     struct MultimediaAsset {
         string ipfsHash;
@@ -28,22 +24,10 @@ contract MultimediaNFT is ERC721, ERC721URIStorage, ERC721Enumerable, Ownable, R
         bool isVerified;
         uint256 verificationTimestamp;
         address verifier;
-    }
-    
-    struct License {
-        string licenseType;
-        uint256 price;
-        uint256 duration;
-        bool isActive;
-        string terms;
-        uint256 maxViews;
-        uint256 currentViews;
-        mapping(address => bool) authorizedViewers;
-        mapping(address => uint256) viewerPermissions;
+        string tokenURI;
     }
     
     mapping(uint256 => MultimediaAsset) public assets;
-    mapping(uint256 => License) public licenses;
     mapping(address => uint256[]) public creatorTokens;
     mapping(string => bool) public ipfsHashExists;
     mapping(address => bool) public authorizedMinters;
@@ -68,24 +52,6 @@ contract MultimediaNFT is ERC721, ERC721URIStorage, ERC721Enumerable, Ownable, R
         uint256 verificationTimestamp
     );
     
-    event LicenseUpdated(
-        uint256 indexed tokenId,
-        string licenseType,
-        uint256 price,
-        uint256 duration
-    );
-    
-    event ViewerAuthorized(
-        uint256 indexed tokenId,
-        address indexed viewer,
-        uint256 permissions
-    );
-    
-    event ViewerRemoved(
-        uint256 indexed tokenId,
-        address indexed viewer
-    );
-    
     modifier onlyAuthorizedMinter() {
         require(
             authorizedMinters[msg.sender] || msg.sender == owner(),
@@ -94,19 +60,12 @@ contract MultimediaNFT is ERC721, ERC721URIStorage, ERC721Enumerable, Ownable, R
         _;
     }
     
-    modifier tokenExists(uint256 tokenId) {
-        require(tokenExists[tokenId], "Token does not exist");
-        _;
-    }
-    
     modifier onlyTokenOwner(uint256 tokenId) {
         require(ownerOf(tokenId) == msg.sender, "Not the token owner");
         _;
     }
     
-    constructor() ERC721("MultimediaNFT", "MMNFT") Ownable(msg.sender) {
-        authorizedMinters[msg.sender] = true;
-    }
+    constructor() ERC721("Multimedia NFT", "MNFT") Ownable(msg.sender) {}
     
     function mintAsset(
         string memory ipfsHash,
@@ -115,14 +74,13 @@ contract MultimediaNFT is ERC721, ERC721URIStorage, ERC721Enumerable, Ownable, R
         string memory originalCreator,
         string memory provenanceHash,
         string memory tokenURI
-    ) public payable nonReentrant returns (uint256) {
+    ) public payable nonReentrant onlyAuthorizedMinter {
         require(msg.value >= mintingFee, "Insufficient minting fee");
-        require(!ipfsHashExists[ipfsHash], "IPFS hash already exists");
         require(bytes(ipfsHash).length > 0, "IPFS hash cannot be empty");
         require(fileSize > 0, "File size must be greater than 0");
         
-        _tokenIds.increment();
-        uint256 newTokenId = _tokenIds.current();
+        _tokenIds++;
+        uint256 newTokenId = _tokenIds;
         
         _safeMint(msg.sender, newTokenId);
         _setTokenURI(newTokenId, tokenURI);
@@ -139,22 +97,20 @@ contract MultimediaNFT is ERC721, ERC721URIStorage, ERC721Enumerable, Ownable, R
             licenseType: "",
             isVerified: false,
             verificationTimestamp: 0,
-            verifier: address(0)
+            verifier: address(0),
+            tokenURI: tokenURI
         });
         
-        tokenExists[newTokenId] = true;
         creatorTokens[msg.sender].push(newTokenId);
         ipfsHashExists[ipfsHash] = true;
+        tokenExists[newTokenId] = true;
         
         emit AssetMinted(newTokenId, msg.sender, ipfsHash, fileType, fileSize, tokenURI);
-        
-        return newTokenId;
     }
     
     function verifyAsset(uint256 tokenId) public payable nonReentrant {
-        require(msg.value >= verificationFee, "Insufficient verification fee");
         require(tokenExists[tokenId], "Token does not exist");
-        require(!assets[tokenId].isVerified, "Asset already verified");
+        require(msg.value >= verificationFee, "Insufficient verification fee");
         
         assets[tokenId].isVerified = true;
         assets[tokenId].verificationTimestamp = block.timestamp;
@@ -163,129 +119,9 @@ contract MultimediaNFT is ERC721, ERC721URIStorage, ERC721Enumerable, Ownable, R
         emit AssetVerified(tokenId, msg.sender, block.timestamp);
     }
     
-    function setLicense(
-        uint256 tokenId,
-        string memory licenseType,
-        uint256 licensePrice,
-        uint256 duration,
-        string memory terms
-    ) public tokenExists(tokenId) onlyTokenOwner(tokenId) {
-        licenses[tokenId] = License({
-            licenseType: licenseType,
-            price: licensePrice,
-            duration: duration,
-            isActive: true,
-            terms: terms,
-            maxViews: 0,
-            currentViews: 0
-        });
-        
-        assets[tokenId].isLicensed = true;
-        assets[tokenId].licensePrice = licensePrice;
-        assets[tokenId].licenseType = licenseType;
-        
-        emit LicenseUpdated(tokenId, licenseType, licensePrice, duration);
-    }
-    
-    function purchaseLicense(uint256 tokenId) public payable nonReentrant {
+    function getAsset(uint256 tokenId) public view returns (MultimediaAsset memory) {
         require(tokenExists[tokenId], "Token does not exist");
-        require(assets[tokenId].isLicensed, "Asset not licensed");
-        require(msg.value >= assets[tokenId].licensePrice, "Insufficient payment");
-        
-        uint256 platformFeeAmount = (assets[tokenId].licensePrice * platformFee) / 10000;
-        uint256 ownerAmount = assets[tokenId].licensePrice - platformFeeAmount;
-        
-        // Transfer payments
-        payable(owner()).transfer(platformFeeAmount);
-        payable(ownerOf(tokenId)).transfer(ownerAmount);
-        
-        // Grant viewing permissions
-        licenses[tokenId].authorizedViewers[msg.sender] = true;
-        licenses[tokenId].viewerPermissions[msg.sender] = block.timestamp + licenses[tokenId].duration;
-        licenses[tokenId].currentViews++;
-        
-        emit ViewerAuthorized(tokenId, msg.sender, block.timestamp + licenses[tokenId].duration);
-    }
-    
-    function authorizeViewer(
-        uint256 tokenId,
-        address viewer,
-        uint256 permissions
-    ) public tokenExists(tokenId) onlyTokenOwner(tokenId) {
-        licenses[tokenId].authorizedViewers[viewer] = true;
-        licenses[tokenId].viewerPermissions[viewer] = permissions;
-        
-        emit ViewerAuthorized(tokenId, viewer, permissions);
-    }
-    
-    function removeViewer(uint256 tokenId, address viewer) 
-        public tokenExists(tokenId) onlyTokenOwner(tokenId) {
-        licenses[tokenId].authorizedViewers[viewer] = false;
-        licenses[tokenId].viewerPermissions[viewer] = 0;
-        
-        emit ViewerRemoved(tokenId, viewer);
-    }
-    
-    function checkViewPermission(uint256 tokenId, address viewer) 
-        public view tokenExists(tokenId) returns (bool) {
-        // Owner can always view
-        if (ownerOf(tokenId) == viewer) return true;
-        
-        // Check if viewer is authorized and permission hasn't expired
-        return licenses[tokenId].authorizedViewers[viewer] && 
-               licenses[tokenId].viewerPermissions[viewer] > block.timestamp;
-    }
-    
-    function getAsset(uint256 tokenId) public view tokenExists(tokenId) returns (
-        string memory ipfsHash,
-        string memory fileType,
-        uint256 fileSize,
-        string memory originalCreator,
-        uint256 creationTimestamp,
-        string memory provenanceHash,
-        bool isLicensed,
-        uint256 licensePrice,
-        string memory licenseType,
-        bool isVerified,
-        uint256 verificationTimestamp,
-        address verifier
-    ) {
-        MultimediaAsset storage asset = assets[tokenId];
-        return (
-            asset.ipfsHash,
-            asset.fileType,
-            asset.fileSize,
-            asset.originalCreator,
-            asset.creationTimestamp,
-            asset.provenanceHash,
-            asset.isLicensed,
-            asset.licensePrice,
-            asset.licenseType,
-            asset.isVerified,
-            asset.verificationTimestamp,
-            asset.verifier
-        );
-    }
-    
-    function getLicense(uint256 tokenId) public view tokenExists(tokenId) returns (
-        string memory licenseType,
-        uint256 price,
-        uint256 duration,
-        bool isActive,
-        string memory terms,
-        uint256 maxViews,
-        uint256 currentViews
-    ) {
-        License storage license = licenses[tokenId];
-        return (
-            license.licenseType,
-            license.price,
-            license.duration,
-            license.isActive,
-            license.terms,
-            license.maxViews,
-            license.currentViews
-        );
+        return assets[tokenId];
     }
     
     function getCreatorTokens(address creator) public view returns (uint256[] memory) {
@@ -297,20 +133,7 @@ contract MultimediaNFT is ERC721, ERC721URIStorage, ERC721Enumerable, Ownable, R
     }
     
     function getTokenCount() public view returns (uint256) {
-        return _tokenIds.current();
-    }
-    
-    function setMintingFee(uint256 newFee) public onlyOwner {
-        mintingFee = newFee;
-    }
-    
-    function setVerificationFee(uint256 newFee) public onlyOwner {
-        verificationFee = newFee;
-    }
-    
-    function setPlatformFee(uint256 newFee) public onlyOwner {
-        require(newFee <= 1000, "Platform fee cannot exceed 10%");
-        platformFee = newFee;
+        return _tokenIds;
     }
     
     function addAuthorizedMinter(address minter) public onlyOwner {
@@ -321,24 +144,29 @@ contract MultimediaNFT is ERC721, ERC721URIStorage, ERC721Enumerable, Ownable, R
         authorizedMinters[minter] = false;
     }
     
-    function emergencyWithdraw() public onlyOwner {
-        payable(owner()).transfer(address(this).balance);
+    function setMintingFee(uint256 newFee) public onlyOwner {
+        mintingFee = newFee;
     }
     
-    // Required overrides for multiple inheritance
-    function _burn(uint256 tokenId) internal override(ERC721, ERC721URIStorage) {
-        super._burn(tokenId);
+    function setVerificationFee(uint256 newFee) public onlyOwner {
+        verificationFee = newFee;
     }
     
-    function tokenURI(uint256 tokenId) public view override(ERC721, ERC721URIStorage) returns (string memory) {
-        return super.tokenURI(tokenId);
+    function withdraw() public onlyOwner {
+        uint256 balance = address(this).balance;
+        require(balance > 0, "No funds to withdraw");
+        
+        (bool success, ) = payable(owner()).call{value: balance}("");
+        require(success, "Withdrawal failed");
     }
     
-    function _beforeTokenTransfer(address from, address to, uint256 firstTokenId, uint256 batchSize) internal override(ERC721, ERC721Enumerable) {
-        super._beforeTokenTransfer(from, to, firstTokenId, batchSize);
+    function _setTokenURI(uint256 tokenId, string memory _tokenURI) internal {
+        require(tokenExists[tokenId], "Token does not exist");
+        assets[tokenId].tokenURI = _tokenURI;
     }
     
-    function supportsInterface(bytes4 interfaceId) public view override(ERC721, ERC721Enumerable) returns (bool) {
-        return super.supportsInterface(interfaceId);
+    function tokenURI(uint256 tokenId) public view override returns (string memory) {
+        require(tokenExists[tokenId], "Token does not exist");
+        return assets[tokenId].tokenURI;
     }
 } 

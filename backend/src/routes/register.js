@@ -42,16 +42,34 @@ router.post('/',
   [
     body('originalCreator').notEmpty().withMessage('Original creator is required'),
     body('description').optional().isString().withMessage('Description must be a string'),
-    body('tags').optional().isArray().withMessage('Tags must be an array'),
+    body('tags').optional().custom((value) => {
+      if (typeof value === 'string') {
+        try {
+          return JSON.parse(value);
+        } catch (error) {
+          throw new Error('Tags must be a valid JSON array');
+        }
+      }
+      return value;
+    }).withMessage('Tags must be an array'),
     body('licenseType').optional().isString().withMessage('License type must be a string'),
     body('licensePrice').optional().isNumeric().withMessage('License price must be a number'),
     body('optimize').optional().isBoolean().withMessage('Optimize must be a boolean')
   ],
   async (req, res) => {
     try {
+      console.log('Registration request received:', {
+        hasFile: !!req.file,
+        fileSize: req.file?.size,
+        fileName: req.file?.originalname,
+        body: req.body,
+        user: req.user
+      });
+
       // Validate request
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
+        console.log('Validation errors:', errors.array());
         return res.status(400).json({ 
           error: 'Validation failed',
           details: errors.array() 
@@ -59,6 +77,7 @@ router.post('/',
       }
 
       if (!req.file) {
+        console.log('No file uploaded');
         return res.status(400).json({ error: 'No file uploaded' });
       }
 

@@ -1,10 +1,131 @@
 import React, { useState, useEffect } from 'react';
 import { useWeb3 } from './Web3Provider';
 import { toast } from 'react-hot-toast';
-import { FiImage, FiVideo, FiMusic, FiFile, FiEye, FiDownload, FiShare, FiInfo, FiClock, FiUser, FiTag, FiGrid, FiList, FiFilter, FiSearch } from 'react-icons/fi';
+import { FiImage, FiVideo, FiMusic, FiFile, FiEye, FiDownload, FiShare, FiInfo, FiClock, FiUser, FiTag, FiGrid, FiList, FiFilter, FiSearch, FiX } from 'react-icons/fi';
+
+// Component to handle image loading with authentication
+const ImageWithFallback = ({ tokenId, alt, className }) => {
+  const [imageSrc, setImageSrc] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    let currentBlobUrl = null;
+
+    const loadImage = async () => {
+      try {
+        console.log('Loading image for tokenId:', tokenId);
+        const token = localStorage.getItem('token');
+        console.log('Token for image request:', !!token);
+        
+        const response = await fetch(`/api/assets/${tokenId}/file`, {
+          headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+        });
+        
+        console.log('Image fetch response:', response.status, response.statusText);
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('Image fetch error:', response.status, errorText);
+          throw new Error(`HTTP ${response.status} - ${errorText}`);
+        }
+        
+        const blob = await response.blob();
+        console.log('Image blob size:', blob.size, 'type:', blob.type);
+        
+        if (blob.size === 0) {
+          console.error('Received empty blob for tokenId:', tokenId);
+          throw new Error('Empty image data received');
+        }
+        
+        const dataUrl = URL.createObjectURL(blob);
+        currentBlobUrl = dataUrl;
+        console.log('Created blob URL:', dataUrl);
+        
+        // Only set state if component is still mounted
+        if (isMounted) {
+          setImageSrc(dataUrl);
+          setLoading(false);
+          console.log('Image loaded successfully:', tokenId, 'dataUrl:', dataUrl);
+        } else {
+          // Clean up if component unmounted
+          URL.revokeObjectURL(dataUrl);
+        }
+      } catch (err) {
+        console.error('Failed to load image:', tokenId, err);
+        if (isMounted) {
+          setError(true);
+          setLoading(false);
+        }
+      }
+    };
+
+    loadImage();
+    
+    // Cleanup
+    return () => {
+      isMounted = false;
+      if (currentBlobUrl) {
+        URL.revokeObjectURL(currentBlobUrl);
+      }
+    };
+  }, [tokenId]);
+
+  if (loading) {
+    return (
+      <div className={`${className} flex items-center justify-center bg-gray-100`}>
+        <div className="loading-spinner-sm"></div>
+      </div>
+    );
+  }
+
+  if (error || !imageSrc) {
+    return (
+      <div className={`${className} flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200`}>
+        <div className="text-center p-4">
+          <div className="w-16 h-16 mx-auto mb-3">
+            <svg viewBox="0 0 64 64" className="w-full h-full text-gray-400">
+              <rect x="8" y="8" width="48" height="48" rx="4" fill="currentColor" opacity="0.2"/>
+              <circle cx="24" cy="24" r="3" fill="currentColor"/>
+              <path d="M8 44l12-12 8 8 12-12 16 16" stroke="currentColor" strokeWidth="2" fill="none"/>
+            </svg>
+          </div>
+          <p className="text-xs text-gray-500">Image unavailable</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={imageSrc}
+      alt={alt}
+      className={className}
+      onLoad={() => console.log('Image rendered successfully:', tokenId, 'src:', imageSrc.substring(0, 50))}
+      onError={(e) => {
+        console.error('Image render error:', tokenId, 'src:', imageSrc.substring(0, 50), e);
+        setError(true);
+      }}
+      style={{ 
+        maxWidth: '100%', 
+        height: 'auto',
+        display: 'block'
+      }}
+    />
+  );
+};
 
 const NFTGallery = () => {
-  const { account, isConnected, getUserTokens, getAsset, formatBalance, getShortAddress } = useWeb3();
+  const { account, isConnected, formatBalance, getShortAddress, retryAuthentication } = useWeb3();
+  
+  // Debug function to set test token
+  const setTestToken = () => {
+    const testToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhZGRyZXNzIjoiMHhmMzlmZDZlNTFhYWQ4OGY2ZjRjZTZhYjg4MjcyNzljZmZmYjkyMjY2IiwidHlwZSI6IndhbGxldCIsIm5vbmNlIjoxNzU0Njg3ODM3ODcxLCJpYXQiOjE3NTQ2ODc4MzcsImV4cCI6MTc1NDc3NDIzN30.dmacx64i2EFAvca1tP45BGpdQfzhX4p_OYC5Yeb7oGA';
+    localStorage.setItem('token', testToken);
+    toast.success('Test token set for debugging');
+    loadUserNFTs(); // Reload NFTs with the new token
+  };
   
   const [nfts, setNfts] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -17,48 +138,84 @@ const NFTGallery = () => {
 
   useEffect(() => {
     if (isConnected && account) {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        console.log('No token found, user needs to authenticate');
+        // Don't automatically load NFTs without a token
+        return;
+      }
       loadUserNFTs();
     }
+  }, [isConnected, account]);
+
+  // Listen for token changes (for when authentication succeeds)
+  useEffect(() => {
+    const handleStorageChange = (e) => {
+      if (e.key === 'token' && e.newValue && isConnected && account) {
+        console.log('Token updated, reloading NFTs');
+        loadUserNFTs();
+      }
+    };
+    
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
   }, [isConnected, account]);
 
   const loadUserNFTs = async () => {
     setLoading(true);
     try {
-      // Get user's tokens from blockchain
-      const tokenIds = await getUserTokens(account);
+      // Get user's NFTs from backend API
+      const token = localStorage.getItem('token');
+      console.log('Loading NFTs for account:', account);
+      console.log('Token available:', !!token);
       
-      // Fetch NFT details for each token
-      const nftPromises = tokenIds.map(async (tokenId) => {
-        try {
-          const asset = await getAsset(tokenId);
-          
-          // Fetch additional metadata from backend
-          const response = await fetch(`/api/assets/${tokenId}`);
-          const metadata = response.ok ? await response.json() : null;
-          
-          return {
-            tokenId: tokenId.toString(),
-            asset,
-            metadata,
-            type: getFileType(asset?.fileType || ''),
-            formattedSize: formatFileSize(asset?.fileSize || 0),
-            formattedDate: formatDate(asset?.timestamp || Date.now())
-          };
-        } catch (error) {
-          console.error(`Error loading NFT ${tokenId}:`, error);
-          return null;
+      if (!token) {
+        console.warn('No authentication token found');
+        throw new Error('Authentication required');
+      }
+
+      const response = await fetch(`/api/assets/user/${account}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`
         }
       });
 
-      const nftResults = await Promise.all(nftPromises);
-      const validNFTs = nftResults.filter(nft => nft !== null);
+      console.log('Assets API response status:', response.status);
       
-      setNfts(validNFTs);
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Assets API error:', response.status, errorText);
+        throw new Error(`HTTP error! status: ${response.status} - ${errorText}`);
+      }
+
+      const result = await response.json();
+      console.log('Assets API result:', result);
+      const assets = result.assets || [];
       
-      if (validNFTs.length === 0) {
+      const nfts = assets.map(asset => {
+        return {
+          tokenId: asset.tokenId,
+          asset: {
+            fileType: asset.fileType,
+            fileSize: asset.fileSize,
+            originalCreator: asset.originalCreator,
+            timestamp: asset.createdAt
+          },
+          metadata: asset,
+          type: getFileType(asset.fileType || ''),
+          formattedSize: formatFileSize(asset.fileSize || 0),
+          formattedDate: formatDate(asset.createdAt || Date.now())
+        };
+      });
+      
+
+      setNfts(nfts);
+      
+      if (nfts.length === 0) {
         toast.info('No NFTs found for this account.');
       } else {
-        toast.success(`Loaded ${validNFTs.length} NFT${validNFTs.length > 1 ? 's' : ''}`);
+        toast.success(`Loaded ${nfts.length} NFT${nfts.length > 1 ? 's' : ''}`);
       }
       
     } catch (error) {
@@ -114,8 +271,8 @@ const NFTGallery = () => {
 
   const handleDownload = async (nft) => {
     try {
-      if (nft.asset?.ipfsHash) {
-        const ipfsUrl = `${process.env.REACT_APP_IPFS_GATEWAY}/ipfs/${nft.asset.ipfsHash}`;
+      if (nft.metadata?.ipfsHash) {
+        const ipfsUrl = `${process.env.REACT_APP_IPFS_GATEWAY}/ipfs/${nft.metadata.ipfsHash}`;
         window.open(ipfsUrl, '_blank');
         toast.success('Opening file in new tab');
       } else {
@@ -131,7 +288,7 @@ const NFTGallery = () => {
     try {
       const shareData = {
         title: `NFT #${nft.tokenId}`,
-        text: `Check out this NFT: ${nft.asset?.description || 'Multimedia NFT'}`,
+        text: `Check out this NFT: ${nft.metadata?.description || 'Multimedia NFT'}`,
         url: window.location.href
       };
 
@@ -157,8 +314,8 @@ const NFTGallery = () => {
       if (!searchTerm) return true;
       const searchLower = searchTerm.toLowerCase();
       return (
-        nft.asset?.description?.toLowerCase().includes(searchLower) ||
-        nft.asset?.originalCreator?.toLowerCase().includes(searchLower) ||
+        nft.metadata?.description?.toLowerCase().includes(searchLower) ||
+        nft.metadata?.originalCreator?.toLowerCase().includes(searchLower) ||
         nft.metadata?.tags?.toLowerCase().includes(searchLower) ||
         nft.tokenId.includes(searchTerm)
       );
@@ -224,6 +381,32 @@ const NFTGallery = () => {
             <div>
               <h3 className="text-lg font-semibold text-gray-900">Connected Account</h3>
               <p className="text-gray-600 font-mono">{getShortAddress(account)}</p>
+              {!localStorage.getItem('token') && (
+                <div className="mt-2">
+                  <p className="text-sm text-orange-600 mb-2">⚠️ Authentication required to view NFTs</p>
+                  <button
+                    onClick={retryAuthentication}
+                    className="btn-primary text-sm px-4 py-2"
+                  >
+                    🔐 Retry Authentication
+                  </button>
+                </div>
+              )}
+              {localStorage.getItem('token') && (
+                <div className="mt-2">
+                  <p className="text-sm text-green-600">✅ Authenticated</p>
+                </div>
+              )}
+              {process.env.NODE_ENV === 'development' && (
+                <div className="mt-2">
+                  <button
+                    onClick={setTestToken}
+                    className="btn-outline text-xs px-3 py-1"
+                  >
+                    🔧 Set Test Token
+                  </button>
+                </div>
+              )}
             </div>
             <div className="text-right">
               <p className="text-sm text-gray-500">Total NFTs</p>
@@ -358,27 +541,28 @@ const NFTGallery = () => {
                 {viewMode === 'grid' ? (
                   <>
                     {/* NFT Image/Icon */}
-                    <div className="nft-card-image">
+                    <div className="nft-card-image" style={{ minHeight: '200px', backgroundColor: '#f0f0f0' }}>
                       {nft.type === 'image' ? (
-                        <img
-                          src={`${process.env.REACT_APP_IPFS_GATEWAY}/ipfs/${nft.asset?.ipfsHash}`}
-                          alt={nft.asset?.description || 'NFT'}
-                          className="w-full h-full object-cover"
-                          onError={(e) => {
-                            e.target.style.display = 'none';
-                            e.target.nextSibling.style.display = 'flex';
-                          }}
-                        />
-                      ) : null}
-                      
-                      <div 
-                        className="w-full h-full flex items-center justify-center"
-                        style={{ display: nft.type === 'image' ? 'none' : 'flex' }}
-                      >
-                        {React.createElement(getFileIcon(nft.type), {
-                          className: "w-16 h-16 text-gray-400"
-                        })}
-                      </div>
+                        <div className="w-full h-full relative">
+                          <ImageWithFallback
+                            tokenId={nft.tokenId}
+                            alt={nft.metadata?.description || 'NFT'}
+                            className="w-full h-full object-cover absolute inset-0"
+                          />
+                        </div>
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
+                          <div className="text-center p-4">
+                            {React.createElement(getFileIcon(nft.type), {
+                              className: "w-16 h-16 text-gray-400 mx-auto mb-3"
+                            })}
+                            <p className="text-xs text-gray-600 font-medium truncate max-w-full">
+                              {nft.metadata?.description || `NFT #${nft.tokenId}`}
+                            </p>
+                            <p className="text-xs text-gray-500 capitalize mt-1">{nft.type}</p>
+                          </div>
+                        </div>
+                      )}
 
                       <div className="nft-card-badge">
                         #{nft.tokenId}
@@ -388,13 +572,13 @@ const NFTGallery = () => {
                     {/* NFT Details */}
                     <div className="p-6">
                       <h3 className="text-lg font-semibold text-gray-900 mb-2 truncate">
-                        {nft.asset?.description || `NFT #${nft.tokenId}`}
+                        {nft.metadata?.description || `NFT #${nft.tokenId}`}
                       </h3>
                       
                       <div className="space-y-2 text-sm text-gray-600">
                         <div className="flex items-center">
                           <FiUser className="w-4 h-4 mr-2" />
-                          <span className="truncate">{nft.asset?.originalCreator || 'Unknown'}</span>
+                          <span className="truncate">{nft.metadata?.originalCreator || 'Unknown'}</span>
                         </div>
                         
                         <div className="flex items-center">
@@ -444,10 +628,10 @@ const NFTGallery = () => {
 
                     <div className="flex-1">
                       <h3 className="text-lg font-semibold text-gray-900 mb-1">
-                        {nft.asset?.description || `NFT #${nft.tokenId}`}
+                        {nft.metadata?.description || `NFT #${nft.tokenId}`}
                       </h3>
                       <p className="text-gray-600 text-sm">
-                        By {nft.asset?.originalCreator || 'Unknown'} • {nft.formattedDate} • {nft.formattedSize}
+                        By {nft.metadata?.originalCreator || 'Unknown'} • {nft.formattedDate} • {nft.formattedSize}
                       </p>
                     </div>
 
@@ -504,25 +688,26 @@ const NFTGallery = () => {
                   <div>
                     <div className="aspect-square bg-gradient-to-br from-gray-100 to-gray-200 rounded-2xl flex items-center justify-center mb-4">
                       {selectedNFT.type === 'image' ? (
-                        <img
-                          src={`${process.env.REACT_APP_IPFS_GATEWAY}/ipfs/${selectedNFT.asset?.ipfsHash}`}
-                          alt={selectedNFT.asset?.description || 'NFT'}
-                          className="w-full h-full object-cover rounded-2xl"
-                          onError={(e) => {
-                            e.target.style.display = 'none';
-                            e.target.nextSibling.style.display = 'flex';
-                          }}
-                        />
-                      ) : null}
-                      
-                      <div 
-                        className="w-full h-full flex items-center justify-center rounded-2xl"
-                        style={{ display: selectedNFT.type === 'image' ? 'none' : 'flex' }}
-                      >
-                        {React.createElement(getFileIcon(selectedNFT.type), {
-                          className: "w-24 h-24 text-gray-400"
-                        })}
-                      </div>
+                        <div className="w-full h-full relative">
+                          <ImageWithFallback
+                            tokenId={selectedNFT.tokenId}
+                            alt={selectedNFT.metadata?.description || 'NFT'}
+                            className="w-full h-full object-cover rounded-2xl absolute inset-0"
+                          />
+                        </div>
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 rounded-2xl">
+                          <div className="text-center p-6">
+                            {React.createElement(getFileIcon(selectedNFT.type), {
+                              className: "w-24 h-24 text-gray-400 mx-auto mb-4"
+                            })}
+                            <p className="text-sm text-gray-600 font-medium truncate max-w-full">
+                              {selectedNFT.metadata?.description || `NFT #${selectedNFT.tokenId}`}
+                            </p>
+                            <p className="text-xs text-gray-500 capitalize mt-1">{selectedNFT.type}</p>
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     <div className="flex gap-3">
@@ -547,7 +732,7 @@ const NFTGallery = () => {
                   <div className="space-y-6">
                     <div>
                       <h3 className="text-xl font-bold text-gray-900 mb-2">
-                        {selectedNFT.asset?.description || `NFT #${selectedNFT.tokenId}`}
+                        {selectedNFT.metadata?.description || `NFT #${selectedNFT.tokenId}`}
                       </h3>
                       <p className="text-gray-600">Token ID: #{selectedNFT.tokenId}</p>
                     </div>
@@ -555,7 +740,7 @@ const NFTGallery = () => {
                     <div className="space-y-4">
                       <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
                         <span className="text-gray-600">Creator</span>
-                        <span className="font-medium">{selectedNFT.asset?.originalCreator || 'Unknown'}</span>
+                        <span className="font-medium">{selectedNFT.metadata?.originalCreator || 'Unknown'}</span>
                       </div>
 
                       <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
@@ -573,19 +758,19 @@ const NFTGallery = () => {
                         <span className="font-medium capitalize">{selectedNFT.type}</span>
                       </div>
 
-                      {selectedNFT.asset?.licenseType && (
-                        <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
-                          <span className="text-gray-600">License</span>
-                          <span className="font-medium">{selectedNFT.asset.licenseType}</span>
-                        </div>
-                      )}
+                                              {selectedNFT.metadata?.licenseType && (
+                          <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
+                            <span className="text-gray-600">License</span>
+                            <span className="font-medium">{selectedNFT.metadata.licenseType}</span>
+                          </div>
+                        )}
                     </div>
 
-                    {selectedNFT.asset?.ipfsHash && (
+                    {selectedNFT.metadata?.ipfsHash && (
                       <div>
                         <h4 className="font-semibold text-gray-900 mb-2">IPFS Hash</h4>
                         <p className="font-mono text-sm text-gray-600 break-all bg-gray-50 p-3 rounded-xl">
-                          {selectedNFT.asset.ipfsHash}
+                          {selectedNFT.metadata.ipfsHash}
                         </p>
                       </div>
                     )}

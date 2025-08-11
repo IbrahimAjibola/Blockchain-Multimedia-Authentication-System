@@ -98,13 +98,31 @@ const ContentVerification = () => {
     setIsVerifying(true);
 
     try {
-      // Check if hash exists on blockchain
-      const exists = await checkIPFSHashExists(hashInput);
-      
-      if (exists) {
-        // Get asset details
-        const assetDetails = await getAsset(hashInput);
-        
+      // Verify hash using backend API
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('Authentication required. Please connect your wallet first.');
+      }
+
+      const response = await fetch('/api/verify/hash', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          ipfsHash: hashInput
+        })
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP error! status: ${response.status} - ${errorText}`);
+      }
+
+      const result = await response.json();
+
+      if (result.success) {
         setVerificationResult({
           method: 'hash',
           results: [{
@@ -112,12 +130,12 @@ const ContentVerification = () => {
             success: true,
             status: 'verified',
             exists: true,
-            assetDetails,
-            message: 'Hash found on blockchain'
+            assetDetails: result.asset,
+            message: 'Hash found in database'
           }]
         });
 
-        toast.success('Hash verified on blockchain!');
+        toast.success('Hash verified successfully!');
       } else {
         setVerificationResult({
           method: 'hash',
@@ -126,11 +144,11 @@ const ContentVerification = () => {
             success: false,
             status: 'not_found',
             exists: false,
-            message: 'Hash not found on blockchain'
+            message: 'Hash not found in database'
           }]
         });
 
-        toast.error('Hash not found on blockchain.');
+        toast.error('Hash not found in database.');
       }
 
     } catch (error) {
@@ -431,7 +449,7 @@ const ContentVerification = () => {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                           <div>
                             <span className="text-gray-500">Creator:</span>
-                            <span className="ml-2 font-medium">{result.assetDetails.creator || 'Unknown'}</span>
+                            <span className="ml-2 font-medium">{result.assetDetails.originalCreator || 'Unknown'}</span>
                           </div>
                           <div>
                             <span className="text-gray-500">Token ID:</span>
@@ -440,8 +458,8 @@ const ContentVerification = () => {
                           <div>
                             <span className="text-gray-500">Registration Date:</span>
                             <span className="ml-2 font-medium">
-                              {result.assetDetails.timestamp 
-                                ? new Date(result.assetDetails.timestamp * 1000).toLocaleDateString()
+                              {result.assetDetails.createdAt 
+                                ? new Date(result.assetDetails.createdAt).toLocaleDateString()
                                 : 'N/A'
                               }
                             </span>
@@ -459,10 +477,26 @@ const ContentVerification = () => {
                           </div>
                         )}
 
-                        {result.ipfsHash && (
+                        {result.assetDetails.ipfsHash && (
                           <div>
                             <span className="text-gray-500">IPFS Hash:</span>
-                            <p className="mt-1 font-mono text-sm text-gray-700 break-all">{result.ipfsHash}</p>
+                            <p className="mt-1 font-mono text-sm text-gray-700 break-all">{result.assetDetails.ipfsHash}</p>
+                          </div>
+                        )}
+
+                        {result.assetDetails.gatewayUrl && (
+                          <div>
+                            <span className="text-gray-500">Gateway URL:</span>
+                            <p className="mt-1">
+                              <a 
+                                href={result.assetDetails.gatewayUrl} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="text-blue-600 hover:text-blue-800 underline break-all"
+                              >
+                                {result.assetDetails.gatewayUrl}
+                              </a>
+                            </p>
                           </div>
                         )}
                       </div>

@@ -229,7 +229,7 @@
 }
 
 .nft-card-image {
-  @apply relative aspect-square bg-gradient-to-br from-gray-100 to-gray-200;
+  @apply relative aspect-square;
 }
 
 .nft-card-badge {

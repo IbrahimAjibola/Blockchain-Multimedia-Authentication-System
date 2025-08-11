@@ -82,25 +82,51 @@ const ContentRegistration = () => {
           formDataToSend.append('file', fileObj.file);
           formDataToSend.append('originalCreator', formData.originalCreator);
           formDataToSend.append('description', formData.description);
-          formDataToSend.append('tags', formData.tags);
+          
+          // Convert tags string to array
+          const tagsArray = formData.tags ? formData.tags.split(',').map(tag => tag.trim()) : [];
+          formDataToSend.append('tags', JSON.stringify(tagsArray));
+          
           formDataToSend.append('licenseType', formData.licenseType);
           formDataToSend.append('licensePrice', formData.licensePrice);
           formDataToSend.append('optimize', formData.optimize);
 
           // Register with backend
+          const token = localStorage.getItem('token');
+          if (!token) {
+            throw new Error('Authentication required. Please connect your wallet first.');
+          }
+
+          console.log('Sending registration request:', {
+            file: fileObj.file.name,
+            size: fileObj.file.size,
+            type: fileObj.file.type,
+            token: token ? 'present' : 'missing'
+          });
+
           const response = await fetch('/api/register', {
             method: 'POST',
             headers: {
-              'Authorization': `Bearer ${localStorage.getItem('token')}` // You'll need to implement auth
+              'Authorization': `Bearer ${token}`
+              // Note: Don't set Content-Type for FormData, let browser set it with boundary
             },
             body: formDataToSend
           });
 
           if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+            const errorText = await response.text();
+            console.error('Registration error response:', {
+              status: response.status,
+              statusText: response.statusText,
+              body: errorText
+            });
+            throw new Error(`HTTP error! status: ${response.status} - ${errorText}`);
           }
 
           const result = await response.json();
+          
+          // Debug: Log the response structure
+          console.log('Registration response:', result);
 
           // Update file status to success
           const successFiles = selectedFiles.map((f, index) => 
@@ -473,9 +499,21 @@ const ContentRegistration = () => {
                   
                   {result.result && (
                     <div className="text-sm text-gray-600 mt-2">
-                      <p>IPFS Hash: {result.result.ipfsHash}</p>
-                      {result.result.tokenId && (
-                        <p>Token ID: {result.result.tokenId}</p>
+                      <p>IPFS Hash: {result.result.ipfs?.fileHash || result.result.asset?.ipfsHash || 'Not available'}</p>
+                      {result.result.blockchain?.tokenId && (
+                        <p>Token ID: {result.result.blockchain.tokenId}</p>
+                      )}
+                      {result.result.asset?.gatewayUrl && (
+                        <p className="break-all">
+                          <a 
+                            href={result.result.asset.gatewayUrl} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="text-blue-600 hover:text-blue-800 underline"
+                          >
+                            View on IPFS Gateway
+                          </a>
+                        </p>
                       )}
                     </div>
                   )}

@@ -77,6 +77,12 @@ class MultimediaService {
    */
   async extractExifData(imageBuffer) {
     try {
+      // Check if exifReader is available
+      if (typeof exifReader !== 'function') {
+        console.warn('exifReader not available, skipping EXIF extraction');
+        return null;
+      }
+      
       const tags = exifReader(imageBuffer);
       return this.sanitizeExifData(tags);
     } catch (error) {
